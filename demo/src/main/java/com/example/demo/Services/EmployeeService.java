@@ -9,6 +9,7 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.aspectj.util.Reflection;
 import org.modelmapper.ModelMapper;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -23,13 +24,24 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class EmployeeService {
     private final EmployeeRepository employeeRepository;
+    private final RedisTemplate<Long,Object> redisTemplate;
     private final ModelMapper modelMapper;
     
     public ResponseEntity<ApiResponse<?>> getEmployeeById(Long id) {
         try{
-            EmployeeEntity employeeEntity = employeeRepository.findById(id).orElseThrow(() -> new Exception("User Not Found With This Id"));
+            Object o = redisTemplate.opsForValue().get(id);
+            EmployeeEntity employeeEntity = null;
+            if(o instanceof EmployeeEntity){
+                 employeeEntity = (EmployeeEntity)o;
+            }
+            else {
+             employeeEntity = employeeRepository.findById(id).orElseThrow(() -> new Exception("User Not Found With This Id"));
+
+            }
+
             EmployeeDto employeeDto = modelMapper.map(employeeEntity, EmployeeDto.class);
             ApiResponse<EmployeeDto> apiResponse = new ApiResponse<>(employeeDto);
+            redisTemplate.opsForValue().set(id,employeeEntity);
             return new ResponseEntity<>(apiResponse,HttpStatus.OK);
 
         }catch (Exception exp){
